@@ -107,6 +107,96 @@ It supports Admin, Manager, Staff, and User roles, complete with reservation han
 
 ---
 
+# 🗄️ **Database Setup (hotel_db.sql Included)**
+
+This project ships with a full MySQL schema located at:
+
+```
+src/main/resources/db/hotel_db.sql
+```
+
+The script includes:
+
+* ✔ Complete database creation
+* ✔ `users`, `reservations`, and `rooms` tables
+* ✔ Pre-seeded Admin / Manager / Staff / User accounts
+* ✔ 150+ structured room numbers
+* ✔ Secure salted password hashes
+* ✔ All constraints & foreign keys
+
+---
+
+## 🔧 **How to Import the Database**
+
+You can import the SQL file using MySQL Workbench, phpMyAdmin, or the MySQL terminal.
+
+### **Method 1 — MySQL Terminal**
+
+```sql
+SOURCE D:/Hotel Reservation System/src/main/resources/db/hotel_db.sql;
+```
+
+### **Method 2 — MySQL Workbench**
+
+1. Open Workbench
+2. Go to **Server > Data Import**
+3. Choose **Import from Self-Contained File**
+4. Select `hotel_db.sql`
+5. Click **Start Import**
+
+---
+
+## 🔐 **Default Login Accounts**
+
+Use these accounts to get started:
+
+| Username | Role    | Password   |
+| -------- | ------- | ---------- |
+| admin    | Admin   | admin123   |
+| manager1 | Manager | manager123 |
+| staff1   | Staff   | staff123   |
+| user1    | User    | user123    |
+
+> These passwords correspond to salted SHA-256 hashes inside the SQL file.
+
+---
+
+## 🏨 **Room Inventory (Pre-Loaded)**
+
+Your system automatically runs with a complete room set:
+
+| Room Type | Room Numbers | Total Rooms |
+| --------- | ------------ | ----------- |
+| Standard  | 100–150      | 51          |
+| Deluxe    | 200–250      | 51          |
+| Suite     | 300–350      | 51          |
+
+This ensures proper availability calculation and auto room assignment.
+
+---
+
+## ⚙️ **db.properties Example**
+
+Make sure your application points to the correct DB:
+
+```
+db.driver=com.mysql.cj.jdbc.Driver
+db.url=jdbc:mysql://localhost:3306/hotel_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+db.user=root
+db.password=yourpassword
+```
+
+---
+
+## ♻️ **Resetting the Database**
+
+If needed:
+
+```sql
+DROP DATABASE IF EXISTS hotel_db;
+SOURCE hotel_db.sql;
+```
+
 # ⚙️ **Installation & Setup**
 
 ### **1️⃣ Clone the Repository**

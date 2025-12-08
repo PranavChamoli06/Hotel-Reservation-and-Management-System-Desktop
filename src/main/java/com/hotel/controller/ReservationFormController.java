@@ -35,6 +35,9 @@ public class ReservationFormController {
     @FXML private Button saveButton;
     @FXML private Button cancelButton;
 
+    // convenience: title label exists in FXML (optional visual cue)
+    @FXML private Label titleLabel;
+
     private final ReservationDAO reservationDAO = new ReservationDAO();
     private static final Logger LOGGER = Logger.getLogger(ReservationFormController.class.getName());
 
@@ -250,14 +253,67 @@ public class ReservationFormController {
             }
         }
 
+        // -----------------------
+        // ENFORCE readonly for EDIT MODE (lock down fields that must not be edited)
+        // -----------------------
+        guestNameField.setEditable(false);
+        phoneField.setEditable(false);
+        roomTypeCombo.setDisable(true);
+        totalPriceField.setEditable(false);
+
+        // Optional visual cue
+        if (titleLabel != null) titleLabel.setText("Edit Reservation — only dates editable");
+
         dirty = false;
         clearValidationUI();
         validateForm();
     }
 
+    /** Call this when opening the form for a new reservation */
+    public void prepareForCreate() {
+        editingReservationId = null;
+        guestNameField.setText("");
+        phoneField.setText("");
+        roomTypeCombo.setValue(null);
+        checkInPicker.setValue(null);
+        checkOutPicker.setValue(null);
+        totalPriceField.setText("");
+
+        // re-enable inputs for creation
+        guestNameField.setEditable(true);
+        phoneField.setEditable(true);
+        roomTypeCombo.setDisable(false);
+        totalPriceField.setEditable(false);
+
+        if (titleLabel != null) titleLabel.setText("Reservation Form");
+
+        dirty = false;
+        clearValidationUI();
+        validateForm();
+    }
+
+    private boolean isEditMode() {
+        return editingReservationId != null;
+    }
+
     private void validateForm() {
         clearValidationUI();
 
+        // In edit mode we only require valid dates. In create mode run full validation.
+        if (isEditMode()) {
+            LocalDate in = checkInPicker.getValue();
+            LocalDate out = checkOutPicker.getValue();
+            if (in == null || out == null || !in.isBefore(out)) {
+                markFieldInvalid(checkInPicker, "Invalid dates");
+                markFieldInvalid(checkOutPicker, "Invalid dates");
+                saveButton.setDisable(true);
+                return;
+            }
+            saveButton.setDisable(false);
+            return;
+        }
+
+        // CREATE mode validation (unchanged behavior)
         if (guestNameField.getText().trim().isEmpty()) {
             markFieldInvalid(guestNameField, "Guest required");
             saveButton.setDisable(true);
@@ -321,62 +377,75 @@ public class ReservationFormController {
     }
 
     private void saveReservation() {
-        String guestName = guestNameField.getText().trim();
-        String phone = phoneField.getText().trim();
-        String typeLabel = roomTypeCombo.getValue();
-        String roomType = extractPlainType(typeLabel);
-
         LocalDate inLD = checkInPicker.getValue();
         LocalDate outLD = checkOutPicker.getValue();
-
-        double price = Double.parseDouble(totalPriceField.getText());
-
-        User user = Session.getCurrentUser();
-        int userId = user != null ? user.getId() : -1;
+        if (inLD == null || outLD == null) {
+            Alert a = new Alert(Alert.AlertType.ERROR, "Please select valid check-in and check-out dates.", ButtonType.OK);
+            a.setHeaderText(null);
+            a.showAndWait();
+            return;
+        }
 
         final Date checkIn = Date.valueOf(inLD);
         final Date checkOut = Date.valueOf(outLD);
-        final Timestamp createdAt = new Timestamp(System.currentTimeMillis());
 
         saveButton.setDisable(true);
 
         Task<Boolean> saveTask = new Task<>() {
-            private String errorMsg;
+            private String errorMsg = "Unknown error";
 
             @Override
             protected Boolean call() {
                 try {
-                    Optional<Integer> maybe = reservationDAO.findAvailableRoom(roomType, checkIn, checkOut);
-                    if (maybe.isEmpty()) {
-                        errorMsg = "No available " + roomType + " rooms.";
-                        return false;
+                    if (isEditMode()) {
+                        // EDIT MODE: only update check_in and check_out in DB
+                        Reservation res = new Reservation();
+                        res.setId(editingReservationId);
+                        res.setCheckIn(checkIn);
+                        res.setCheckOut(checkOut);
+
+                        boolean ok = reservationDAO.updateCheckInOut(res);
+                        if (!ok) errorMsg = "Failed to update reservation dates.";
+                        return ok;
+                    } else {
+                        // CREATE MODE: original flow
+                        String guestName = guestNameField.getText().trim();
+                        String phone = phoneField.getText().trim();
+                        String typeLabel = roomTypeCombo.getValue();
+                        String roomType = extractPlainType(typeLabel);
+
+                        double price = 0.0;
+                        try { price = Double.parseDouble(totalPriceField.getText()); } catch (Exception ex) {}
+
+                        Optional<Integer> maybe = reservationDAO.findAvailableRoom(roomType, checkIn, checkOut);
+                        if (maybe.isEmpty()) {
+                            errorMsg = "No available " + roomType + " rooms.";
+                            return false;
+                        }
+                        int assignedRoom = maybe.get();
+
+                        User user = Session.getCurrentUser();
+                        int userId = user != null ? user.getId() : -1;
+                        final java.sql.Timestamp createdAt = new java.sql.Timestamp(System.currentTimeMillis());
+
+                        Reservation res = new Reservation(
+                                0,
+                                userId,
+                                guestName,
+                                assignedRoom,
+                                roomType,
+                                checkIn,
+                                checkOut,
+                                phone,
+                                "Pending",
+                                price,
+                                createdAt
+                        );
+
+                        boolean ok = reservationDAO.createReservation(res);
+                        if (!ok) errorMsg = "Database error while creating reservation.";
+                        return ok;
                     }
-                    int assignedRoom = maybe.get();
-
-                    Reservation res = new Reservation(
-                            editingReservationId != null ? editingReservationId : 0,
-                            userId,
-                            guestName,
-                            assignedRoom,
-                            roomType,
-                            checkIn,
-                            checkOut,
-                            phone,
-                            "Pending",
-                            price,
-                            createdAt
-                    );
-
-                    boolean ok = (editingReservationId != null)
-                            ? reservationDAO.updateReservation(res)
-                            : reservationDAO.createReservation(res);
-
-                    if (!ok) {
-                        errorMsg = "Database error.";
-                        return false;
-                    }
-
-                    return true;
                 } catch (Exception ex) {
                     LOGGER.log(Level.SEVERE, "Save failed", ex);
                     errorMsg = "Internal error.";

@@ -158,6 +158,33 @@ public class ReservationDAO {
         }
     }
 
+    /**
+     * Update only the check_in and check_out columns for a reservation.
+     * This intentionally avoids touching guest info, phone, room_type, price, etc.
+     */
+    public boolean updateCheckInOut(Reservation r) {
+        String sql = "UPDATE reservations SET check_in = ?, check_out = ? WHERE id = ?";
+
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            if (r.getCheckIn() != null) stmt.setDate(1, r.getCheckIn());
+            else stmt.setNull(1, java.sql.Types.DATE);
+
+            if (r.getCheckOut() != null) stmt.setDate(2, r.getCheckOut());
+            else stmt.setNull(2, java.sql.Types.DATE);
+
+            stmt.setInt(3, r.getId());
+
+            int updated = stmt.executeUpdate();
+            return updated > 0;
+
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Error in updateCheckInOut id=" + r.getId(), e);
+            return false;
+        }
+    }
+
     /* ========================================================================
        DELETE OPERATIONS
        ======================================================================== */

@@ -403,6 +403,10 @@ public class DashboardController {
             FXMLLoader fx = new FXMLLoader(getClass().getResource("/fxml/ReservationForm.fxml"));
             Parent root = fx.load();
 
+            // Prepare controller for creation flow
+            ReservationFormController ctrl = fx.getController();
+            if (ctrl != null) ctrl.prepareForCreate();
+
             Stage st = new Stage();
             Scene sc = new Scene(root);
             sc.getStylesheets().add(getClass().getResource("/css/style.css").toExternalForm());
@@ -566,7 +570,7 @@ public class DashboardController {
 
         if (dir != null) {
             boolean ok = new ReportService().exportPDFDaily(dir, LocalDate.now());
-            showExportAlert(ok, "PDF (Daily)");
+            showExportAlert(ok, "Daily PDF");
         }
     }
 
